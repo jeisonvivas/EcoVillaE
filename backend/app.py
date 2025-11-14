@@ -1,12 +1,17 @@
-# app.py - API Flask para EcoVilla
-from flask import Flask, request, jsonify
+# backend/app.py - EcoVilla listo para Vercel
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from db import get_connection
 from datetime import datetime
+import os
 
-app = Flask(__name__)
+# Configuración Flask
+app = Flask(__name__, template_folder="../templates", static_folder="../static")
 CORS(app)
 
+# -------------------
+# Puntos por kg
+# -------------------
 POINTS_PER_KG = {
     "plastico": 10, "plástico": 10, "papel": 8, "vidrio": 5,
     "metal": 12, "orgánico": 4, "organico": 4, "otros": 1
@@ -20,11 +25,30 @@ def compute_points(material, cantidad):
     except: q = 0
     return int(q * pts_per)
 
+# -------------------
+# Rutas Frontend
+# -------------------
+@app.route("/")
+def home(): return render_template("index.html")
+
+@app.route("/login")
+def login_page(): return render_template("login.html")
+
+@app.route("/registrar")
+def registrar_page(): return render_template("registrar.html")
+
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory("../static", path)
+
+# -------------------
+# API: Status
+# -------------------
 @app.get("/status")
 def status(): return {"status":"ok"}
 
 # -------------------
-# REGISTER (crear usuario)
+# API: REGISTER
 # -------------------
 @app.post("/register")
 def register():
@@ -55,7 +79,7 @@ def register():
     return jsonify({"id": new_id, "nombre": nombre, "email": email})
 
 # -------------------
-# LOGIN
+# API: LOGIN
 # -------------------
 @app.post("/login")
 def login():
@@ -74,7 +98,7 @@ def login():
     return jsonify({"id": row[0], "nombre": row[1], "email": email})
 
 # -------------------
-# Buscar usuario
+# API: Buscar usuario
 # -------------------
 @app.get("/buscar_usuario")
 def buscar_usuario():
@@ -93,7 +117,7 @@ def buscar_usuario():
     return jsonify([{"id": r[0], "nombre": r[1], "documento": r[2]} for r in rows])
 
 # -------------------
-# Usuarios, detalle y reciclaje
+# API: Usuarios y detalle
 # -------------------
 @app.get("/usuarios")
 def usuarios():
@@ -125,6 +149,9 @@ def usuario_detail(uid):
         "numero_identificacion": r[4], "total_points": total_points, "total_kg": total_kg
     })
 
+# -------------------
+# API: Reciclaje
+# -------------------
 @app.get("/reciclaje")
 def get_reciclaje():
     conn = get_connection()
@@ -158,6 +185,9 @@ def post_reciclaje():
     points = compute_points(material, cantidad)
     return jsonify({"id": new_id, "points": points})
 
+# -------------------
+# API: Ranking
+# -------------------
 @app.get("/ranking")
 def get_ranking():
     conn = get_connection()
@@ -173,5 +203,9 @@ def get_ranking():
     data.sort(key=lambda x: x["points"], reverse=True)
     return jsonify(data)
 
+# -------------------
+# Run local / Vercel
+# -------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
